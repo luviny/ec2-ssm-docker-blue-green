@@ -47,7 +47,7 @@ export class DeploymentService {
 
     async runShellScript(command: string, isPrint: boolean = true) {
         // 로그 발생
-        info(`\x1b[1;36m${command}\x1b[0m`);
+        if (isPrint) info(`\x1b[1;36m${command}\x1b[0m`);
 
         // 실행
         const sendResult = await this.client.send(
@@ -83,13 +83,26 @@ export class DeploymentService {
             }),
         );
 
-        // 로그 출력
-        if (isPrint && invocation.StandardOutputContent) info(invocation.StandardOutputContent);
-        if (invocation.StandardErrorContent) error(invocation.StandardErrorContent);
+        // Standard Output 출력
+        if (isPrint && invocation.StandardOutputContent) {
+            info(invocation.StandardOutputContent);
+        }
 
-        // 실패 시 중단
+        // Standard Error 출력 (이 부분이 핵심입니다)
+        if (invocation.StandardErrorContent) {
+            // Status가 Success라면 에러가 아니라 '경고'나 '정보'로 취급합니다.
+            if (invocation.Status === 'Success') {
+                // info 또는 warn 레벨로 출력하여 혼동을 방지합니다.
+                info(`[Stderr/Warning]: ${invocation.StandardErrorContent}`);
+            } else {
+                // 진짜 실패했을 때만 error 레벨로 출력합니다.
+                error(`[Stderr/Error]: ${invocation.StandardErrorContent}`);
+            }
+        }
+
+        // 실패 시 중단 (Status 필드 기반)
         if (invocation.Status !== 'Success') {
-            error(`Step failed with status: ${invocation.Status}`);
+            error(`Step failed with status: ${invocation.Status} (Code: ${invocation.ResponseCode})`);
             process.exit(1);
         }
 

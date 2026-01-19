@@ -54132,7 +54132,8 @@ class DeploymentService {
         return result === data.healthStatus;
     }
     async runShellScript(command, isPrint = true) {
-        (0, core_1.info)(`\x1b[1;36m${command}\x1b[0m`);
+        if (isPrint)
+            (0, core_1.info)(`\x1b[1;36m${command}\x1b[0m`);
         const sendResult = await this.client.send(new client_ssm_1.SendCommandCommand({
             DocumentName: 'AWS-RunShellScript',
             InstanceIds: [this.instanceId],
@@ -54153,12 +54154,19 @@ class DeploymentService {
             CommandId: commandId,
             InstanceId: this.instanceId,
         }));
-        if (isPrint && invocation.StandardOutputContent)
+        if (isPrint && invocation.StandardOutputContent) {
             (0, core_1.info)(invocation.StandardOutputContent);
-        if (invocation.StandardErrorContent)
-            (0, core_1.error)(invocation.StandardErrorContent);
+        }
+        if (invocation.StandardErrorContent) {
+            if (invocation.Status === 'Success') {
+                (0, core_1.info)(`[Stderr/Warning]: ${invocation.StandardErrorContent}`);
+            }
+            else {
+                (0, core_1.error)(`[Stderr/Error]: ${invocation.StandardErrorContent}`);
+            }
+        }
         if (invocation.Status !== 'Success') {
-            (0, core_1.error)(`Step failed with status: ${invocation.Status}`);
+            (0, core_1.error)(`Step failed with status: ${invocation.Status} (Code: ${invocation.ResponseCode})`);
             process.exit(1);
         }
         return invocation.StandardOutputContent;
