@@ -56319,7 +56319,9 @@ async function bootstrap() {
             newName = services[0];
             curName = services[1];
         }
-        const newContainerName = await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} ps ${newName} --format "{{.Name}}"`);
+        const configRaw = await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} config --format json`, false);
+        const composeConfig = JSON.parse(configRaw);
+        const newContainerName = composeConfig.services[newName].container_name;
         if (envFilePath)
             await deploy.generateEnvFile(envFilePath, newContainerName);
         await deploy.runShellScript(`echo "${process.env.GITHUB_TOKEN}" | sudo docker login ghcr.io -u ${process.env.GITHUB_ACTOR} --password-stdin`);
