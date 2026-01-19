@@ -34,7 +34,7 @@ export class DeploymentService {
         chmod 600 ${envFile}`;
 
         info('Transferring .env file to EC2...');
-        await this.runShellScript(setupEnvScript);
+        await this.runShellScript(setupEnvScript, false);
         info('.env file transfer completed');
     }
 
@@ -45,7 +45,7 @@ export class DeploymentService {
         return result === data.healthStatus;
     }
 
-    async runShellScript(command: string) {
+    async runShellScript(command: string, isPrint: boolean = true) {
         // 로그 발생
         info(`\x1b[1;36m${command}\x1b[0m`);
 
@@ -84,7 +84,7 @@ export class DeploymentService {
         );
 
         // 로그 출력
-        if (invocation.StandardOutputContent) info(invocation.StandardOutputContent);
+        if (isPrint && invocation.StandardOutputContent) info(invocation.StandardOutputContent);
         if (invocation.StandardErrorContent) error(invocation.StandardErrorContent);
 
         // 실패 시 중단

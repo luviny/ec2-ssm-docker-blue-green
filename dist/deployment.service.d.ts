@@ -11,5 +11,5 @@ export declare class DeploymentService {
         healthStatus: string;
         healthPath: string;
     }): Promise<boolean>;
-    runShellScript(command: string): Promise<string | undefined>;
+    runShellScript(command: string, isPrint?: boolean): Promise<string | undefined>;
 }

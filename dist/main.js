@@ -54124,14 +54124,14 @@ class DeploymentService {
         echo "${base64Env}" | base64 -d > ${envFile}
         chmod 600 ${envFile}`;
         (0, core_1.info)('Transferring .env file to EC2...');
-        await this.runShellScript(setupEnvScript);
+        await this.runShellScript(setupEnvScript, false);
         (0, core_1.info)('.env file transfer completed');
     }
     async healthCheck(data) {
         const result = await this.runShellScript(`docker run --rm --network ${data.network} curlimages/curl  --retry 5  --retry-delay 3  --retry-all-errors --max-time 30 -s -o /dev/null -w "%{http_code}\n" http://${data.appName}:${data.internalPort}${data.healthPath}`);
         return result === data.healthStatus;
     }
-    async runShellScript(command) {
+    async runShellScript(command, isPrint = true) {
         (0, core_1.info)(`\x1b[1;36m${command}\x1b[0m`);
         const sendResult = await this.client.send(new client_ssm_1.SendCommandCommand({
             DocumentName: 'AWS-RunShellScript',
@@ -54153,7 +54153,7 @@ class DeploymentService {
             CommandId: commandId,
             InstanceId: this.instanceId,
         }));
-        if (invocation.StandardOutputContent)
+        if (isPrint && invocation.StandardOutputContent)
             (0, core_1.info)(invocation.StandardOutputContent);
         if (invocation.StandardErrorContent)
             (0, core_1.error)(invocation.StandardErrorContent);
