@@ -54112,7 +54112,7 @@ class DeploymentService {
         this.instanceId = instanceId;
     }
     async generateEnvFile(envFilePath, containerName) {
-        const localEnvPath = path.join(__dirname, '.env');
+        const localEnvPath = path.join(process.cwd(), '.env');
         if (!fs.existsSync(localEnvPath)) {
             throw new Error('Local .env file not found.');
         }

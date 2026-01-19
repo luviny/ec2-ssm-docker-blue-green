@@ -14,7 +14,7 @@ export class DeploymentService {
 
     async generateEnvFile(envFilePath: string, containerName?: string) {
         // 로컬의 .env 파일 읽기 (경로는 본인의 환경에 맞게 수정하세요)
-        const localEnvPath = path.join(__dirname, '.env');
+        const localEnvPath = path.join(process.cwd(), '.env');
         if (!fs.existsSync(localEnvPath)) {
             throw new Error('Local .env file not found.');
         }
