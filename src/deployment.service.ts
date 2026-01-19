@@ -42,7 +42,7 @@ export class DeploymentService {
         const result = await this.runShellScript(
             `docker run --rm --network ${data.network.trim()} curlimages/curl  --retry 5  --retry-delay 3  --retry-all-errors --max-time 30 -s -o /dev/null -w "%{http_code}\n" http://${data.appName.trim()}:${data.internalPort.trim()}${data.healthPath.trim()}`,
         );
-        return result === data.healthStatus;
+        return result?.trim() === data.healthStatus;
     }
 
     async runShellScript(command: string, isPrint: boolean = true) {
