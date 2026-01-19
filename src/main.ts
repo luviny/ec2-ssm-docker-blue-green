@@ -78,6 +78,9 @@ async function bootstrap() {
 
             // 기존 서비스 종료
             await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${curName}`);
+
+            // 미사용중인 이미지 삭제
+            await deploy.runShellScript(`sudo docker image prune -af || true`);
         } else {
             // 비정상인 경우, 컨테이너 내부 로그 출력 후 종료
             await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);

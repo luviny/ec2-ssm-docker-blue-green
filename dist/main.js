@@ -56342,6 +56342,7 @@ async function bootstrap() {
             await deploy.runShellScript(`sudo sed -i 's|proxy_pass .*;|proxy_pass http://${newContainerName}:${internalPort};|g' ${nginxConfigFilePath}`);
             await deploy.runShellScript(`sudo docker exec nginx nginx -s reload`);
             await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${curName}`);
+            await deploy.runShellScript(`sudo docker image prune -af || true`);
         }
         else {
             await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);
