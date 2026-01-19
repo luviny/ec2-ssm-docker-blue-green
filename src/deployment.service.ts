@@ -1,0 +1,98 @@
+import { SSMClient, SendCommandCommand, GetCommandInvocationCommand, waitUntilCommandExecuted } from '@aws-sdk/client-ssm';
+import { error, info } from '@actions/core';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+
+export class DeploymentService {
+    private client: SSMClient;
+    private instanceId: string;
+
+    constructor(region: string, instanceId: string) {
+        this.client = new SSMClient({ region, profile: 'carsayo' });
+        this.instanceId = instanceId;
+    }
+
+    async generateEnvFile(envFilePath: string, containerName?: string) {
+        // 로컬의 .env 파일 읽기 (경로는 본인의 환경에 맞게 수정하세요)
+        const localEnvPath = path.join(__dirname, '.env');
+        if (!fs.existsSync(localEnvPath)) {
+            throw new Error('Local .env file not found.');
+        }
+
+        // env 파일 읽기
+        const envContent = fs.readFileSync(localEnvPath, 'utf-8');
+
+        // 특수 문자 문제 방지를 위해 Base64 인코딩
+        const base64Env = Buffer.from(envContent).toString('base64');
+
+        const envFile = containerName ? `${envFilePath}.${containerName}` : envFilePath;
+
+        // EC2에 디렉토리 생성 및 파일 쓰기 스크립트 작성 (base64로 전달하고 서버에서 디코딩하여 저장합니다)
+        const setupEnvScript = `
+        mkdir -p $(dirname ${envFile})
+        echo "${base64Env}" | base64 -d > ${envFile}
+        chmod 600 ${envFile}`;
+
+        info('Transferring .env file to EC2...');
+        await this.runShellScript(setupEnvScript);
+        info('.env file transfer completed');
+    }
+
+    async healthCheck(data: { network: string; appName: string; internalPort: string; timeOut: string; healthStatus: string }) {
+        const result = await this.runShellScript(
+            `docker run --rm --network ${data.network} curlimages/curl  --retry 5  --retry-delay 3  --retry-all-errors --max-time 30 -s -o /dev/null -w "%{http_code}\n" http://${data.appName}:${data.internalPort}`,
+        );
+        return result === data.healthStatus;
+    }
+
+    async runShellScript(command: string) {
+        // 로그 발생
+        info(`\x1b[1;36m${command}\x1b[0m`);
+
+        // 실행
+        const sendResult = await this.client.send(
+            new SendCommandCommand({
+                DocumentName: 'AWS-RunShellScript',
+                InstanceIds: [this.instanceId],
+                Parameters: { commands: [command] },
+            }),
+        );
+
+        // 실행 아이디 추출
+        const commandId = sendResult.Command?.CommandId;
+        if (!commandId) throw new Error('Command ID를 생성하지 못했습니다.');
+
+        // 실행 건 대기
+        await waitUntilCommandExecuted(
+            {
+                client: this.client,
+                maxWaitTime: 300,
+                minDelay: 2,
+            },
+            {
+                CommandId: commandId,
+                InstanceId: this.instanceId,
+            },
+        );
+
+        // 결과 조회
+        const invocation = await this.client.send(
+            new GetCommandInvocationCommand({
+                CommandId: commandId,
+                InstanceId: this.instanceId,
+            }),
+        );
+
+        // 로그 출력
+        if (invocation.StandardOutputContent) info(invocation.StandardOutputContent);
+        if (invocation.StandardErrorContent) error(invocation.StandardErrorContent);
+
+        // 실패 시 중단
+        if (invocation.Status !== 'Success') {
+            error(`Step failed with status: ${invocation.Status}`);
+            process.exit(1);
+        }
+
+        return invocation.StandardOutputContent;
+    }
+}

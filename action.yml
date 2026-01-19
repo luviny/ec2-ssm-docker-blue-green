@@ -1,0 +1,38 @@
+name: 'EC2 SSM Docker Blue Green'
+description: 'Connect to EC2 via SSM and perform blue-green deployment of Docker container services'
+inputs:
+  aws-region:
+    description: 'The AWS region'
+    required: false
+    default: 'ap-northeast-2'
+  aws-ec2-id:
+    description: 'ec2 id'
+    required: true
+  env-file-path:
+    description: 'Path to register the environment variable file on the EC2 (required aws-base-path)'
+    required: false
+  aws-base-path:
+    description: 'aws ssm parameter store base path'
+    required: false
+  docker-compose-file-path:
+    required: true
+    description: 'Path to the compose yml to execute'
+  nginx-config-file-path:
+    required: true
+    description: 'Path to the nginx configuration file on the EC2'
+  health-status:
+    required: false
+    description: 'health status code'
+    default: '200'
+  health-time-out:
+    required: false
+    description: 'health time out'
+    default: '30'
+  internal-port:
+    required: false
+    description: 'internal port'
+    default: '80'
+
+runs:
+  using: 'node20'
+  main: 'dist/main.js'
