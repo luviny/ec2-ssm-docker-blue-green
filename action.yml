@@ -1,5 +1,5 @@
 name: 'EC2 SSM Docker Blue Green'
-description: 'Connect to EC2 via SSM and perform blue-green deployment of Docker container services'
+description: 'Deploy'
 inputs:
   aws-region:
     description: 'The AWS region'
