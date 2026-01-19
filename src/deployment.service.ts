@@ -8,7 +8,7 @@ export class DeploymentService {
     private instanceId: string;
 
     constructor(region: string, instanceId: string) {
-        this.client = new SSMClient({ region, profile: 'carsayo' });
+        this.client = new SSMClient({ region });
         this.instanceId = instanceId;
     }
 

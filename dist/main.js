@@ -54108,7 +54108,7 @@ class DeploymentService {
     client;
     instanceId;
     constructor(region, instanceId) {
-        this.client = new client_ssm_1.SSMClient({ region, profile: 'carsayo' });
+        this.client = new client_ssm_1.SSMClient({ region });
         this.instanceId = instanceId;
     }
     async generateEnvFile(envFilePath, containerName) {
