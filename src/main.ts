@@ -33,7 +33,18 @@ async function bootstrap() {
             curName = services[1];
         }
 
-        const newContainerName = await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} ps ${newName} --format "{{.Name}}"`);
+        // 1. config 명령어로 전체 설정을 JSON으로 가져옵니다.
+        const configRaw = await deploy.runShellScript(
+            `sudo docker compose -f ${dockerComposeFilePath} config --format json`,
+            false, // 로그 출력을 끕니다 (내용이 길 수 있음)
+        );
+
+        // 2. JSON 파싱
+        const composeConfig = JSON.parse(configRaw as string);
+
+        // 3. 특정 서비스의 container_name 추출
+        // newName이 서비스 이름(예: 'old-api.carsayo.net-blue')일 때
+        const newContainerName = composeConfig.services[newName].container_name;
 
         if (envFilePath) await deploy.generateEnvFile(envFilePath, newContainerName);
 
