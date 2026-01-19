@@ -54128,7 +54128,7 @@ class DeploymentService {
         (0, core_1.info)('.env file transfer completed');
     }
     async healthCheck(data) {
-        const result = await this.runShellScript(`docker run --rm --network ${data.network} curlimages/curl  --retry 5  --retry-delay 3  --retry-all-errors --max-time 30 -s -o /dev/null -w "%{http_code}\n" http://${data.appName}:${data.internalPort}`);
+        const result = await this.runShellScript(`docker run --rm --network ${data.network} curlimages/curl  --retry 5  --retry-delay 3  --retry-all-errors --max-time 30 -s -o /dev/null -w "%{http_code}\n" http://${data.appName}:${data.internalPort}${data.healthPath}`);
         return result === data.healthStatus;
     }
     async runShellScript(command) {
@@ -56293,6 +56293,7 @@ async function bootstrap() {
         const dockerComposeFilePath = (0, core_1.getInput)('docker-compose-file-path');
         const awsEc2Id = (0, core_1.getInput)('aws-ec2-id');
         const nginxConfigFilePath = (0, core_1.getInput)('nginx-config-file-path');
+        const healthPath = (0, core_1.getInput)('health-path');
         const healthStatus = (0, core_1.getInput)('health-status');
         const healthTimeOut = (0, core_1.getInput)('health-time-out');
         const internalPort = (0, core_1.getInput)('internal-port');
@@ -56325,6 +56326,7 @@ async function bootstrap() {
             timeOut: healthTimeOut,
             internalPort: internalPort,
             healthStatus: healthStatus,
+            healthPath: healthPath,
         });
         if (healthCheck) {
             await deploy.runShellScript(`sudo sed -i 's|proxy_pass .*;|proxy_pass http://${newContainerName}:${internalPort};|g' ${nginxConfigFilePath}`);

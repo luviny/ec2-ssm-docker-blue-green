@@ -38,9 +38,9 @@ export class DeploymentService {
         info('.env file transfer completed');
     }
 
-    async healthCheck(data: { network: string; appName: string; internalPort: string; timeOut: string; healthStatus: string }) {
+    async healthCheck(data: { network: string; appName: string; internalPort: string; timeOut: string; healthStatus: string; healthPath: string }) {
         const result = await this.runShellScript(
-            `docker run --rm --network ${data.network} curlimages/curl  --retry 5  --retry-delay 3  --retry-all-errors --max-time 30 -s -o /dev/null -w "%{http_code}\n" http://${data.appName}:${data.internalPort}`,
+            `docker run --rm --network ${data.network} curlimages/curl  --retry 5  --retry-delay 3  --retry-all-errors --max-time 30 -s -o /dev/null -w "%{http_code}\n" http://${data.appName}:${data.internalPort}${data.healthPath}`,
         );
         return result === data.healthStatus;
     }

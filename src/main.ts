@@ -9,6 +9,7 @@ async function bootstrap() {
         const dockerComposeFilePath = getInput('docker-compose-file-path');
         const awsEc2Id = getInput('aws-ec2-id');
         const nginxConfigFilePath = getInput('nginx-config-file-path');
+        const healthPath = getInput('health-path');
         const healthStatus = getInput('health-status');
         const healthTimeOut = getInput('health-time-out');
         const internalPort = getInput('internal-port');
@@ -52,6 +53,7 @@ async function bootstrap() {
             timeOut: healthTimeOut,
             internalPort: internalPort,
             healthStatus: healthStatus,
+            healthPath: healthPath,
         });
 
         if (healthCheck) {

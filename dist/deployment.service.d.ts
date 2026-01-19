@@ -9,6 +9,7 @@ export declare class DeploymentService {
         internalPort: string;
         timeOut: string;
         healthStatus: string;
+        healthPath: string;
     }): Promise<boolean>;
     runShellScript(command: string): Promise<string | undefined>;
 }

@@ -20,6 +20,10 @@ inputs:
   nginx-config-file-path:
     required: true
     description: 'Path to the nginx configuration file on the EC2'
+  health-path:
+    required: false
+    description: 'health check path'
+    default: '/'
   health-status:
     required: false
     description: 'health status code'
