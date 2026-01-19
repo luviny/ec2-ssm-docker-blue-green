@@ -1,23 +1,34 @@
 import { getInput, setFailed } from '@actions/core';
 import { DeploymentService } from './deployment.service';
 
+let newName: string;
+let curName: string;
+let deploy: DeploymentService;
+let awsRegion: string;
+let awsBasePath: string;
+let envFilePath: string;
+let dockerComposeFilePath: string;
+let awsEc2Id: string;
+let nginxConfigFilePath: string;
+let healthPath: string;
+let healthStatus: string;
+let healthTimeOut: string;
+let internalPort: string;
+
 async function bootstrap() {
     try {
-        const awsRegion = getInput('aws-region');
-        const awsBasePath = getInput('aws-base-path');
-        const envFilePath = getInput('env-file-path');
-        const dockerComposeFilePath = getInput('docker-compose-file-path');
-        const awsEc2Id = getInput('aws-ec2-id');
-        const nginxConfigFilePath = getInput('nginx-config-file-path');
-        const healthPath = getInput('health-path');
-        const healthStatus = getInput('health-status');
-        const healthTimeOut = getInput('health-time-out');
-        const internalPort = getInput('internal-port');
+        awsRegion = getInput('aws-region');
+        awsBasePath = getInput('aws-base-path');
+        envFilePath = getInput('env-file-path');
+        dockerComposeFilePath = getInput('docker-compose-file-path');
+        awsEc2Id = getInput('aws-ec2-id');
+        nginxConfigFilePath = getInput('nginx-config-file-path');
+        healthPath = getInput('health-path');
+        healthStatus = getInput('health-status');
+        healthTimeOut = getInput('health-time-out');
+        internalPort = getInput('internal-port');
 
-        let newName: string;
-        let curName: string;
-
-        const deploy = new DeploymentService(awsRegion, awsEc2Id);
+        deploy = new DeploymentService(awsRegion, awsEc2Id);
 
         // compose에 명시된 서비스명 추출
         const findService = await deploy.runShellScript(`docker compose -f ${dockerComposeFilePath} config --services`);
@@ -83,18 +94,21 @@ async function bootstrap() {
             await deploy.runShellScript(`sudo docker image prune -af || true`);
         } else {
             // 비정상인 경우, 컨테이너 내부 로그 출력 후 종료
-            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);
-            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} logs ${newName}`);
-            setFailed('Health check failed');
-            process.exit(1);
+            throw new Error('Health check failed');
         }
     } catch (error) {
+        await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} logs ${newName}`);
+        await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);
+
         if (error instanceof Error) {
             setFailed(error.message);
         } else {
             setFailed(String(error));
         }
         process.exit(1);
+    } finally {
+        // 미사용중인 이미지 삭제
+        await deploy.runShellScript(`sudo docker image prune -af || true`);
     }
 }
 

@@ -56293,21 +56293,32 @@ var exports = __webpack_exports__;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core_1 = __nccwpck_require__(9550);
 const deployment_service_1 = __nccwpck_require__(3338);
+let newName;
+let curName;
+let deploy;
+let awsRegion;
+let awsBasePath;
+let envFilePath;
+let dockerComposeFilePath;
+let awsEc2Id;
+let nginxConfigFilePath;
+let healthPath;
+let healthStatus;
+let healthTimeOut;
+let internalPort;
 async function bootstrap() {
     try {
-        const awsRegion = (0, core_1.getInput)('aws-region');
-        const awsBasePath = (0, core_1.getInput)('aws-base-path');
-        const envFilePath = (0, core_1.getInput)('env-file-path');
-        const dockerComposeFilePath = (0, core_1.getInput)('docker-compose-file-path');
-        const awsEc2Id = (0, core_1.getInput)('aws-ec2-id');
-        const nginxConfigFilePath = (0, core_1.getInput)('nginx-config-file-path');
-        const healthPath = (0, core_1.getInput)('health-path');
-        const healthStatus = (0, core_1.getInput)('health-status');
-        const healthTimeOut = (0, core_1.getInput)('health-time-out');
-        const internalPort = (0, core_1.getInput)('internal-port');
-        let newName;
-        let curName;
-        const deploy = new deployment_service_1.DeploymentService(awsRegion, awsEc2Id);
+        awsRegion = (0, core_1.getInput)('aws-region');
+        awsBasePath = (0, core_1.getInput)('aws-base-path');
+        envFilePath = (0, core_1.getInput)('env-file-path');
+        dockerComposeFilePath = (0, core_1.getInput)('docker-compose-file-path');
+        awsEc2Id = (0, core_1.getInput)('aws-ec2-id');
+        nginxConfigFilePath = (0, core_1.getInput)('nginx-config-file-path');
+        healthPath = (0, core_1.getInput)('health-path');
+        healthStatus = (0, core_1.getInput)('health-status');
+        healthTimeOut = (0, core_1.getInput)('health-time-out');
+        internalPort = (0, core_1.getInput)('internal-port');
+        deploy = new deployment_service_1.DeploymentService(awsRegion, awsEc2Id);
         const findService = await deploy.runShellScript(`docker compose -f ${dockerComposeFilePath} config --services`);
         const services = findService?.split('\n')?.filter((f) => !!f) || [];
         const findContainers = await deploy.runShellScript(`docker compose -f ${dockerComposeFilePath} ps ${services[0]} --format "{{.Service}}"`);
@@ -56345,13 +56356,12 @@ async function bootstrap() {
             await deploy.runShellScript(`sudo docker image prune -af || true`);
         }
         else {
-            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);
-            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} logs ${newName}`);
-            (0, core_1.setFailed)('Health check failed');
-            process.exit(1);
+            throw new Error('Health check failed');
         }
     }
     catch (error) {
+        await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} logs ${newName}`);
+        await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);
         if (error instanceof Error) {
             (0, core_1.setFailed)(error.message);
         }
@@ -56359,6 +56369,9 @@ async function bootstrap() {
             (0, core_1.setFailed)(String(error));
         }
         process.exit(1);
+    }
+    finally {
+        await deploy.runShellScript(`sudo docker image prune -af || true`);
     }
 }
 bootstrap();
