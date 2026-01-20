@@ -1,4 +1,4 @@
-import { getInput, setFailed } from '@actions/core';
+import { error, getInput, setFailed } from '@actions/core';
 import { DeploymentService } from './deployment.service';
 
 let newName: string;
@@ -46,7 +46,7 @@ async function bootstrap() {
 
         // 1. config 명령어로 전체 설정을 JSON으로 가져옵니다.
         const configRaw = await deploy.runShellScript(
-            `sudo docker compose -f ${dockerComposeFilePath} config --format json`,
+            `sudo docker compose -f ${dockerComposeFilePath} config --no-interpolate --format json`,
             false, // 로그 출력을 끕니다 (내용이 길 수 있음)
         );
 
@@ -96,14 +96,14 @@ async function bootstrap() {
             // 비정상인 경우, 컨테이너 내부 로그 출력 후 종료
             throw new Error('Health check failed');
         }
-    } catch (error) {
+    } catch (err) {
         await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} logs ${newName}`);
         await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);
 
-        if (error instanceof Error) {
-            setFailed(error.message);
+        if (err instanceof Error) {
+            setFailed(err.message);
         } else {
-            setFailed(String(error));
+            setFailed(String(err));
         }
         process.exit(1);
     } finally {

@@ -56330,7 +56330,7 @@ async function bootstrap() {
             newName = services[0];
             curName = services[1];
         }
-        const configRaw = await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} config --format json`, false);
+        const configRaw = await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} config --no-interpolate --format json`, false);
         const composeConfig = JSON.parse(configRaw);
         const newContainerName = composeConfig.services[newName].container_name;
         if (envFilePath)
@@ -56359,14 +56359,14 @@ async function bootstrap() {
             throw new Error('Health check failed');
         }
     }
-    catch (error) {
+    catch (err) {
         await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} logs ${newName}`);
         await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);
-        if (error instanceof Error) {
-            (0, core_1.setFailed)(error.message);
+        if (err instanceof Error) {
+            (0, core_1.setFailed)(err.message);
         }
         else {
-            (0, core_1.setFailed)(String(error));
+            (0, core_1.setFailed)(String(err));
         }
         process.exit(1);
     }
