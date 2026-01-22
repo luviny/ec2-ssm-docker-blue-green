@@ -11,9 +11,6 @@ inputs:
   env-file-path:
     description: 'Path to register the environment variable file on the EC2 (required aws-base-path)'
     required: false
-  aws-base-path:
-    description: 'aws ssm parameter store base path'
-    required: false
   docker-compose-file-path:
     required: true
     description: 'Path to the compose yml to execute'

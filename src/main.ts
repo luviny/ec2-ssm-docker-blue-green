@@ -1,4 +1,4 @@
-import { error, getInput, setFailed } from '@actions/core';
+import { getInput, setFailed } from '@actions/core';
 import { DeploymentService } from './deployment.service';
 
 let newName: string;
