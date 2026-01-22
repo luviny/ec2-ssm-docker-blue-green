@@ -56297,7 +56297,6 @@ let newName;
 let curName;
 let deploy;
 let awsRegion;
-let awsBasePath;
 let envFilePath;
 let dockerComposeFilePath;
 let awsEc2Id;
@@ -56309,7 +56308,6 @@ let internalPort;
 async function bootstrap() {
     try {
         awsRegion = (0, core_1.getInput)('aws-region');
-        awsBasePath = (0, core_1.getInput)('aws-base-path');
         envFilePath = (0, core_1.getInput)('env-file-path');
         dockerComposeFilePath = (0, core_1.getInput)('docker-compose-file-path');
         awsEc2Id = (0, core_1.getInput)('aws-ec2-id');
@@ -56358,6 +56356,18 @@ async function bootstrap() {
         else {
             throw new Error('Health check failed');
         }
+        const curImage = composeConfig.services[curName]['image'];
+        const newImage = composeConfig.services[newName]['image'];
+        if (curImage && newImage) {
+            const curRepoName = curImage.substring(0, curImage.lastIndexOf(':'));
+            const newRepoName = curImage.substring(0, newImage.lastIndexOf(':'));
+            if (curRepoName === newRepoName) {
+                await deploy.runShellScript(`sudo docker images -f "reference=${curRepoName}" -f "dangling=true" -q | xargs -r sudo docker rmi`);
+            }
+            else {
+                await deploy.runShellScript(`sudo docker images -q --filter "reference=${curRepoName}" | xargs -r sudo docker rmi`);
+            }
+        }
     }
     catch (err) {
         await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} logs ${newName}`);
@@ -56369,9 +56379,6 @@ async function bootstrap() {
             (0, core_1.setFailed)(String(err));
         }
         process.exit(1);
-    }
-    finally {
-        await deploy.runShellScript(`sudo docker image prune -af || true`);
     }
 }
 bootstrap();

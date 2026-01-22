@@ -5,7 +5,6 @@ let newName: string;
 let curName: string;
 let deploy: DeploymentService;
 let awsRegion: string;
-let awsBasePath: string;
 let envFilePath: string;
 let dockerComposeFilePath: string;
 let awsEc2Id: string;
@@ -18,7 +17,6 @@ let internalPort: string;
 async function bootstrap() {
     try {
         awsRegion = getInput('aws-region');
-        awsBasePath = getInput('aws-base-path');
         envFilePath = getInput('env-file-path');
         dockerComposeFilePath = getInput('docker-compose-file-path');
         awsEc2Id = getInput('aws-ec2-id');
@@ -96,6 +94,21 @@ async function bootstrap() {
             // 비정상인 경우, 컨테이너 내부 로그 출력 후 종료
             throw new Error('Health check failed');
         }
+
+        const curImage = composeConfig.services[curName]['image'] as string | undefined;
+        const newImage = composeConfig.services[newName]['image'] as string | undefined;
+        if (curImage && newImage) {
+            const curRepoName = curImage.substring(0, curImage.lastIndexOf(':'));
+            const newRepoName = curImage.substring(0, newImage.lastIndexOf(':'));
+
+            if (curRepoName === newRepoName) {
+                // 기존 이미지와 신규 이미지가 같은 경우 고어 이미지만 삭제
+                await deploy.runShellScript(`sudo docker images -f "reference=${curRepoName}" -f "dangling=true" -q | xargs -r sudo docker rmi`);
+            } else {
+                // 기존 이미지와 신규 이미지가 완전 달라지는 경우 기존 이미지를 태그와 상관없이 모두 삭제
+                await deploy.runShellScript(`sudo docker images -q --filter "reference=${curRepoName}" | xargs -r sudo docker rmi`);
+            }
+        }
     } catch (err) {
         await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} logs ${newName}`);
         await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);
@@ -106,9 +119,6 @@ async function bootstrap() {
             setFailed(String(err));
         }
         process.exit(1);
-    } finally {
-        // 미사용중인 이미지 삭제
-        await deploy.runShellScript(`sudo docker image prune -af || true`);
     }
 }
 
