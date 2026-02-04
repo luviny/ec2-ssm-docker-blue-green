@@ -6,10 +6,12 @@ import * as fs from 'node:fs';
 export class DeploymentService {
     private client: SSMClient;
     private instanceId: string;
+    private dockerConfigPath?: string;
 
-    constructor(region: string, instanceId: string) {
+    constructor(region: string, instanceId: string, dockerConfigPath?: string) {
         this.client = new SSMClient({ region });
         this.instanceId = instanceId;
+        this.dockerConfigPath = dockerConfigPath;
     }
 
     async generateEnvFile(envFilePath: string, containerName?: string) {
@@ -46,15 +48,27 @@ export class DeploymentService {
     }
 
     async runShellScript(command: string, isPrint: boolean = true) {
+        let finalCommand = command;
+        if (this.dockerConfigPath) {
+            // sudo docker 실행 시 환경변수 유지를 위해 인라인으로 주입
+            finalCommand = finalCommand.replace(/sudo docker/g, `sudo DOCKER_CONFIG=${this.dockerConfigPath} docker`);
+            // 일반 실행을 위한 export
+            finalCommand = `export DOCKER_CONFIG=${this.dockerConfigPath}; ${finalCommand}`;
+        }
+
         // 로그 발생
-        if (isPrint) info(`\x1b[1;36m${command}\x1b[0m`);
+        if (isPrint) info(`\x1b[1;36m${finalCommand}\x1b[0m`);
+
+        const parameters: Record<string, string[]> = {
+            commands: [finalCommand],
+        };
 
         // 실행
         const sendResult = await this.client.send(
             new SendCommandCommand({
                 DocumentName: 'AWS-RunShellScript',
                 InstanceIds: [this.instanceId],
-                Parameters: { commands: [command] },
+                Parameters: parameters,
             }),
         );
 

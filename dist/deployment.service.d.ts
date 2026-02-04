@@ -1,7 +1,8 @@
 export declare class DeploymentService {
     private client;
     private instanceId;
-    constructor(region: string, instanceId: string);
+    private dockerConfigPath?;
+    constructor(region: string, instanceId: string, dockerConfigPath?: string);
     generateEnvFile(envFilePath: string, containerName?: string): Promise<void>;
     healthCheck(data: {
         network: string;

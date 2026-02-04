@@ -54107,9 +54107,11 @@ const fs = __importStar(__nccwpck_require__(3024));
 class DeploymentService {
     client;
     instanceId;
-    constructor(region, instanceId) {
+    dockerConfigPath;
+    constructor(region, instanceId, dockerConfigPath) {
         this.client = new client_ssm_1.SSMClient({ region });
         this.instanceId = instanceId;
+        this.dockerConfigPath = dockerConfigPath;
     }
     async generateEnvFile(envFilePath, containerName) {
         const localEnvPath = path.join(process.cwd(), '.env');
@@ -54132,12 +54134,20 @@ class DeploymentService {
         return result?.trim() === data.healthStatus;
     }
     async runShellScript(command, isPrint = true) {
+        let finalCommand = command;
+        if (this.dockerConfigPath) {
+            finalCommand = finalCommand.replace(/sudo docker/g, `sudo DOCKER_CONFIG=${this.dockerConfigPath} docker`);
+            finalCommand = `export DOCKER_CONFIG=${this.dockerConfigPath}; ${finalCommand}`;
+        }
         if (isPrint)
-            (0, core_1.info)(`\x1b[1;36m${command}\x1b[0m`);
+            (0, core_1.info)(`\x1b[1;36m${finalCommand}\x1b[0m`);
+        const parameters = {
+            commands: [finalCommand],
+        };
         const sendResult = await this.client.send(new client_ssm_1.SendCommandCommand({
             DocumentName: 'AWS-RunShellScript',
             InstanceIds: [this.instanceId],
-            Parameters: { commands: [command] },
+            Parameters: parameters,
         }));
         const commandId = sendResult.Command?.CommandId;
         if (!commandId)
@@ -56306,6 +56316,8 @@ let healthStatus;
 let healthTimeOut;
 let internalPort;
 async function bootstrap() {
+    const runId = crypto.randomUUID();
+    const dockerConfigPath = `/tmp/docker-config-${runId}`;
     try {
         awsRegion = (0, core_1.getInput)('aws-region');
         envFilePath = (0, core_1.getInput)('env-file-path');
@@ -56316,7 +56328,8 @@ async function bootstrap() {
         healthStatus = (0, core_1.getInput)('health-status');
         healthTimeOut = (0, core_1.getInput)('health-time-out');
         internalPort = (0, core_1.getInput)('internal-port');
-        deploy = new deployment_service_1.DeploymentService(awsRegion, awsEc2Id);
+        deploy = new deployment_service_1.DeploymentService(awsRegion, awsEc2Id, dockerConfigPath);
+        await deploy.runShellScript(`mkdir -p ${dockerConfigPath}`);
         const findService = await deploy.runShellScript(`docker compose -f ${dockerComposeFilePath} config --services`);
         const services = findService?.split('\n')?.filter((f) => !!f) || [];
         const findContainers = await deploy.runShellScript(`docker compose -f ${dockerComposeFilePath} ps ${services[0]} --format "{{.Service}}"`);
@@ -56351,7 +56364,6 @@ async function bootstrap() {
             await deploy.runShellScript(`sudo sed -i 's|proxy_pass .*;|proxy_pass http://${newContainerName}:${internalPort};|g' ${nginxConfigFilePath}`);
             await deploy.runShellScript(`sudo docker exec nginx nginx -s reload`);
             await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${curName}`);
-            await deploy.runShellScript(`sudo docker image prune -af || true`);
         }
         else {
             throw new Error('Health check failed');
@@ -56360,7 +56372,7 @@ async function bootstrap() {
         const newImage = composeConfig.services[newName]['image'];
         if (curImage && newImage) {
             const curRepoName = curImage.substring(0, curImage.lastIndexOf(':'));
-            const newRepoName = curImage.substring(0, newImage.lastIndexOf(':'));
+            const newRepoName = newImage.substring(0, newImage.lastIndexOf(':'));
             if (curRepoName === newRepoName) {
                 await deploy.runShellScript(`sudo docker images -f "reference=${curRepoName}" -f "dangling=true" -q | xargs -r sudo docker rmi`);
             }
@@ -56370,8 +56382,10 @@ async function bootstrap() {
         }
     }
     catch (err) {
-        await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} logs ${newName}`);
-        await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);
+        if (newName && deploy) {
+            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} logs ${newName}`);
+            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);
+        }
         if (err instanceof Error) {
             (0, core_1.setFailed)(err.message);
         }
@@ -56379,6 +56393,16 @@ async function bootstrap() {
             (0, core_1.setFailed)(String(err));
         }
         process.exit(1);
+    }
+    finally {
+        if (deploy && dockerConfigPath) {
+            try {
+                await deploy.runShellScript(`rm -rf ${dockerConfigPath}`);
+            }
+            catch (e) {
+                console.error('Failed to cleanup docker config path', e);
+            }
+        }
     }
 }
 bootstrap();

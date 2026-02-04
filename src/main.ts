@@ -3,7 +3,7 @@ import { DeploymentService } from './deployment.service';
 
 let newName: string;
 let curName: string;
-let deploy: DeploymentService;
+let deploy: DeploymentService | undefined;
 let awsRegion: string;
 let envFilePath: string;
 let dockerComposeFilePath: string;
@@ -15,6 +15,10 @@ let healthTimeOut: string;
 let internalPort: string;
 
 async function bootstrap() {
+    // 고유한 실행 ID 생성 (밀리초 단위 타임스탬프)
+    const runId = crypto.randomUUID();
+    const dockerConfigPath = `/tmp/docker-config-${runId}`;
+
     try {
         awsRegion = getInput('aws-region');
         envFilePath = getInput('env-file-path');
@@ -26,7 +30,11 @@ async function bootstrap() {
         healthTimeOut = getInput('health-time-out');
         internalPort = getInput('internal-port');
 
-        deploy = new DeploymentService(awsRegion, awsEc2Id);
+        // dockerConfigPath를 주입하여 DeploymentService 생성
+        deploy = new DeploymentService(awsRegion, awsEc2Id, dockerConfigPath);
+
+        // 도커 설정 디렉토리 생성
+        await deploy.runShellScript(`mkdir -p ${dockerConfigPath}`);
 
         // compose에 명시된 서비스명 추출
         const findService = await deploy.runShellScript(`docker compose -f ${dockerComposeFilePath} config --services`);
@@ -89,7 +97,7 @@ async function bootstrap() {
             await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${curName}`);
 
             // 미사용중인 이미지 삭제
-            await deploy.runShellScript(`sudo docker image prune -af || true`);
+            // await deploy.runShellScript(`sudo docker image prune -af || true`);
         } else {
             // 비정상인 경우, 컨테이너 내부 로그 출력 후 종료
             throw new Error('Health check failed');
@@ -99,7 +107,7 @@ async function bootstrap() {
         const newImage = composeConfig.services[newName]['image'] as string | undefined;
         if (curImage && newImage) {
             const curRepoName = curImage.substring(0, curImage.lastIndexOf(':'));
-            const newRepoName = curImage.substring(0, newImage.lastIndexOf(':'));
+            const newRepoName = newImage.substring(0, newImage.lastIndexOf(':'));
 
             if (curRepoName === newRepoName) {
                 // 기존 이미지와 신규 이미지가 같은 경우 고어 이미지만 삭제
@@ -110,8 +118,10 @@ async function bootstrap() {
             }
         }
     } catch (err) {
-        await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} logs ${newName}`);
-        await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);
+        if (newName && deploy) {
+            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} logs ${newName}`);
+            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);
+        }
 
         if (err instanceof Error) {
             setFailed(err.message);
@@ -119,6 +129,15 @@ async function bootstrap() {
             setFailed(String(err));
         }
         process.exit(1);
+    } finally {
+        // 임시 도커 설정 디렉토리 삭제
+        if (deploy && dockerConfigPath) {
+            try {
+                await deploy.runShellScript(`rm -rf ${dockerConfigPath}`);
+            } catch (e) {
+                console.error('Failed to cleanup docker config path', e);
+            }
+        }
     }
 }
 
