@@ -109,13 +109,30 @@ async function bootstrap() {
             const curRepoName = curImage.substring(0, curImage.lastIndexOf(':'));
             const newRepoName = newImage.substring(0, newImage.lastIndexOf(':'));
 
+            // 1. 배포가 성공했으므로, 기존 컨테이너는 이미 중지되었거나 삭제되었다고 가정합니다.
+            // 하지만 안전을 위해 중지된 컨테이너 정리를 먼저 수행하는 것이 좋습니다 (선택 사항)
+            await deploy.runShellScript(`sudo docker container prune -f`);
+
             if (curRepoName === newRepoName) {
-                // 기존 이미지와 신규 이미지가 같은 경우 고어 이미지만 삭제
-                await deploy.runShellScript(`sudo docker images -f "reference=${curRepoName}" -f "dangling=true" -q | xargs -r sudo docker rmi`);
+                // [수정됨] 기존 이미지와 신규 이미지가 같은 레포지토리인 경우 (예: v1 -> v2)
+                // 댕글링 체크가 아니라, '직전 이미지(curImage)'를 직접 지목하여 삭제합니다.
+                // 현재 실행 중인 컨테이너가 newImage를 쓰고 있으므로, curImage는 안전하게 삭제 가능합니다.
+                console.log(`Cleaning up old image: ${curImage}`);
+                try {
+                    await deploy.runShellScript(`sudo docker rmi ${curImage}`);
+                } catch (e) {
+                    console.log(`이미지 삭제 실패 (다른 컨테이너가 사용 중일 수 있음): ${curImage}`);
+                }
             } else {
-                // 기존 이미지와 신규 이미지가 완전 달라지는 경우 기존 이미지를 태그와 상관없이 모두 삭제
+                // 기존 이미지와 신규 이미지가 완전히 달라지는 경우 (기존 로직 유지)
+                // 이 부분은 기존 이미지를 모두 날려도 되는 상황이라고 판단하신 것 같아 유지합니다.
                 await deploy.runShellScript(`sudo docker images -q --filter "reference=${curRepoName}" | xargs -r sudo docker rmi`);
             }
+
+            // [추가 팁] 빌드 캐시 정리
+            // 이미지만 지운다고 용량이 확보되지 않는 경우, '빌드 캐시'가 주범일 수 있습니다.
+            // 병렬 빌드에 영향이 적은 범위 내에서 24시간 지난 빌드 캐시만 정리하는 것도 방법입니다.
+            await deploy.runShellScript(`sudo docker builder prune -f --filter "until=24h"`);
         }
     } catch (err) {
         if (newName && deploy) {
