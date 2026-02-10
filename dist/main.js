@@ -56373,12 +56373,20 @@ async function bootstrap() {
         if (curImage && newImage) {
             const curRepoName = curImage.substring(0, curImage.lastIndexOf(':'));
             const newRepoName = newImage.substring(0, newImage.lastIndexOf(':'));
+            await deploy.runShellScript(`sudo docker container prune -f`);
             if (curRepoName === newRepoName) {
-                await deploy.runShellScript(`sudo docker images -f "reference=${curRepoName}" -f "dangling=true" -q | xargs -r sudo docker rmi`);
+                console.log(`Cleaning up old image: ${curImage}`);
+                try {
+                    await deploy.runShellScript(`sudo docker rmi ${curImage}`);
+                }
+                catch (e) {
+                    console.log(`이미지 삭제 실패 (다른 컨테이너가 사용 중일 수 있음): ${curImage}`);
+                }
             }
             else {
                 await deploy.runShellScript(`sudo docker images -q --filter "reference=${curRepoName}" | xargs -r sudo docker rmi`);
             }
+            await deploy.runShellScript(`sudo docker builder prune -f --filter "until=24h"`);
         }
     }
     catch (err) {
