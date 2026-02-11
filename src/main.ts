@@ -65,7 +65,7 @@ async function bootstrap() {
 
         if (envFilePath) await deploy.generateEnvFile(envFilePath, newContainerName);
 
-        const curImageName = composeConfig.service[curName].image;
+        const curImageName = composeConfig.services[curName].image;
         const curImageId = (await deploy.runShellScript(`sudo docker images -q ${curImageName}`, false))?.trim();
 
         await deploy.runShellScript(`echo "${process.env.GITHUB_TOKEN}" | sudo docker login ghcr.io -u ${process.env.GITHUB_ACTOR} --password-stdin`);
