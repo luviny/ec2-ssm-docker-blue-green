@@ -97,7 +97,8 @@ async function bootstrap() {
             await deploy.runShellScript(`sudo docker exec nginx nginx -s reload`);
 
             // 기존 서비스 종료
-            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} -s -f -v ${curName}`);
+            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} stop ${curName} || true`);
+            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} rm -f -v ${curName} || true`);
 
             if (curImageId)
                 // 미사용중인 이미지 삭제
