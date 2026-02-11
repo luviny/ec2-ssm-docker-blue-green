@@ -56329,10 +56329,10 @@ async function bootstrap() {
         healthTimeOut = (0, core_1.getInput)('health-time-out');
         internalPort = (0, core_1.getInput)('internal-port');
         deploy = new deployment_service_1.DeploymentService(awsRegion, awsEc2Id, dockerConfigPath);
-        await deploy.runShellScript(`mkdir -p ${dockerConfigPath}`);
-        const findService = await deploy.runShellScript(`docker compose -f ${dockerComposeFilePath} config --services`);
+        await deploy.runShellScript(`mkdir -p ${dockerConfigPath}`, false);
+        const findService = await deploy.runShellScript(`docker compose -f ${dockerComposeFilePath} config --services`, false);
         const services = findService?.split('\n')?.filter((f) => !!f) || [];
-        const findContainers = await deploy.runShellScript(`docker compose -f ${dockerComposeFilePath} ps ${services[0]} --format "{{.Service}}"`);
+        const findContainers = await deploy.runShellScript(`docker compose -f ${dockerComposeFilePath} ps ${services[0]} --format "{{.Service}}"`, false);
         if (findContainers) {
             newName = services[1];
             curName = services[0];
@@ -56346,6 +56346,8 @@ async function bootstrap() {
         const newContainerName = composeConfig.services[newName].container_name;
         if (envFilePath)
             await deploy.generateEnvFile(envFilePath, newContainerName);
+        const curImageName = composeConfig.service[curName].image;
+        const curImageId = (await deploy.runShellScript(`sudo docker images -q ${curImageName}`, false))?.trim();
         await deploy.runShellScript(`echo "${process.env.GITHUB_TOKEN}" | sudo docker login ghcr.io -u ${process.env.GITHUB_ACTOR} --password-stdin`);
         await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} pull ${newName}`);
         await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} up -d ${newName}`);
@@ -56363,30 +56365,12 @@ async function bootstrap() {
         if (healthCheck) {
             await deploy.runShellScript(`sudo sed -i 's|proxy_pass .*;|proxy_pass http://${newContainerName}:${internalPort};|g' ${nginxConfigFilePath}`);
             await deploy.runShellScript(`sudo docker exec nginx nginx -s reload`);
-            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${curName}`);
+            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} -s -f -v ${curName}`);
+            if (curImageId)
+                await deploy.runShellScript(`sudo docker rmi ${curImageId} || true`);
         }
         else {
             throw new Error('Health check failed');
-        }
-        const curImage = composeConfig.services[curName]['image'];
-        const newImage = composeConfig.services[newName]['image'];
-        if (curImage && newImage) {
-            const curRepoName = curImage.substring(0, curImage.lastIndexOf(':'));
-            const newRepoName = newImage.substring(0, newImage.lastIndexOf(':'));
-            await deploy.runShellScript(`sudo docker container prune -f`);
-            if (curRepoName === newRepoName) {
-                console.log(`Cleaning up old image: ${curImage}`);
-                try {
-                    await deploy.runShellScript(`sudo docker rmi ${curImage}`);
-                }
-                catch (e) {
-                    console.log(`이미지 삭제 실패 (다른 컨테이너가 사용 중일 수 있음): ${curImage}`);
-                }
-            }
-            else {
-                await deploy.runShellScript(`sudo docker images -q --filter "reference=${curRepoName}" | xargs -r sudo docker rmi`);
-            }
-            await deploy.runShellScript(`sudo docker builder prune -f --filter "until=24h"`);
         }
     }
     catch (err) {
