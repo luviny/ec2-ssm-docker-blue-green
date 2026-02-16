@@ -56372,7 +56372,7 @@ async function bootstrap() {
             throw new Error('Failed to get network name from docker inspect');
         const healthCheck = await deploy.healthCheck({
             network: newNetwork,
-            appName: newCompose,
+            appName: newContainerName,
             timeOut: healthTimeOut,
             internalPort: internalPort,
             healthStatus: healthStatus,

@@ -105,7 +105,7 @@ async function bootstrap() {
 
         const healthCheck = await deploy.healthCheck({
             network: newNetwork,
-            appName: newCompose,
+            appName: newContainerName,
             timeOut: healthTimeOut,
             internalPort: internalPort,
             healthStatus: healthStatus,
