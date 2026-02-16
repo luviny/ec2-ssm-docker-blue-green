@@ -11,7 +11,10 @@ inputs:
   env-file-path:
     description: 'Path to register the environment variable file on the EC2 (required aws-base-path)'
     required: false
-  docker-compose-file-path:
+  docker-compose-blue-file-path:
+    required: true
+    description: 'Path to the compose yml to execute'
+  docker-compose-green-file-path:
     required: true
     description: 'Path to the compose yml to execute'
   nginx-config-file-path:

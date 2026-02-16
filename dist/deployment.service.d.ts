@@ -3,7 +3,7 @@ export declare class DeploymentService {
     private instanceId;
     private dockerConfigPath?;
     constructor(region: string, instanceId: string, dockerConfigPath?: string);
-    generateEnvFile(envFilePath: string, containerName?: string): Promise<void>;
+    generateEnvFile(envFilePath: string, serviceName?: string): Promise<void>;
     healthCheck(data: {
         network: string;
         appName: string;

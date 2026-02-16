@@ -54113,14 +54113,14 @@ class DeploymentService {
         this.instanceId = instanceId;
         this.dockerConfigPath = dockerConfigPath;
     }
-    async generateEnvFile(envFilePath, containerName) {
+    async generateEnvFile(envFilePath, serviceName) {
         const localEnvPath = path.join(process.cwd(), '.env');
         if (!fs.existsSync(localEnvPath)) {
             throw new Error('Local .env file not found.');
         }
         const envContent = fs.readFileSync(localEnvPath, 'utf-8');
         const base64Env = Buffer.from(envContent).toString('base64');
-        const envFile = containerName ? `${envFilePath}.${containerName}` : envFilePath;
+        const envFile = serviceName ? `${envFilePath}.${serviceName}` : envFilePath;
         const setupEnvScript = `
         mkdir -p $(dirname ${envFile})
         echo "${base64Env}" | base64 -d > ${envFile}
@@ -54140,7 +54140,7 @@ class DeploymentService {
             finalCommand = `export DOCKER_CONFIG=${this.dockerConfigPath}; ${finalCommand}`;
         }
         if (isPrint)
-            (0, core_1.info)(`\x1b[1;36m${finalCommand}\x1b[0m`);
+            (0, core_1.info)(`\x1b[1;36m${command}\x1b[0m`);
         const parameters = {
             commands: [finalCommand],
         };
@@ -56303,12 +56303,15 @@ var exports = __webpack_exports__;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core_1 = __nccwpck_require__(9550);
 const deployment_service_1 = __nccwpck_require__(3338);
-let newName;
-let curName;
+let newCompose;
+let curCompose;
+let newService;
+let curService;
 let deploy;
 let awsRegion;
 let envFilePath;
-let dockerComposeFilePath;
+let dockerComposeBlueFilePath;
+let dockerComposeGreenFilePath;
 let awsEc2Id;
 let nginxConfigFilePath;
 let healthPath;
@@ -56321,7 +56324,8 @@ async function bootstrap() {
     try {
         awsRegion = (0, core_1.getInput)('aws-region');
         envFilePath = (0, core_1.getInput)('env-file-path');
-        dockerComposeFilePath = (0, core_1.getInput)('docker-compose-file-path');
+        dockerComposeBlueFilePath = (0, core_1.getInput)('docker-compose-blue-file-path');
+        dockerComposeGreenFilePath = (0, core_1.getInput)('docker-compose-green-file-path');
         awsEc2Id = (0, core_1.getInput)('aws-ec2-id');
         nginxConfigFilePath = (0, core_1.getInput)('nginx-config-file-path');
         healthPath = (0, core_1.getInput)('health-path');
@@ -56330,33 +56334,45 @@ async function bootstrap() {
         internalPort = (0, core_1.getInput)('internal-port');
         deploy = new deployment_service_1.DeploymentService(awsRegion, awsEc2Id, dockerConfigPath);
         await deploy.runShellScript(`mkdir -p ${dockerConfigPath}`, false);
-        const findService = await deploy.runShellScript(`docker compose -f ${dockerComposeFilePath} config --services`, false);
-        const services = findService?.split('\n')?.filter((f) => !!f) || [];
-        const findContainers = await deploy.runShellScript(`docker compose -f ${dockerComposeFilePath} ps ${services[0]} --format "{{.Service}}"`, false);
-        if (findContainers) {
-            newName = services[1];
-            curName = services[0];
+        const findBlueService = await deploy.runShellScript(`docker compose -f ${dockerComposeBlueFilePath} config --services`, false);
+        const findGreenService = await deploy.runShellScript(`docker compose -f ${dockerComposeGreenFilePath} config --services`, false);
+        const blueOutput = (findBlueService || '').trim();
+        const greenOutput = (findGreenService || '').trim();
+        const firstBlueService = blueOutput ? blueOutput.split('\n')[0] : null;
+        const firstGreenService = greenOutput ? greenOutput.split('\n')[0] : null;
+        if (!firstBlueService || !firstGreenService)
+            throw new Error('No services found in the compose file.');
+        const findBlueContainer = await deploy.runShellScript(`docker compose -f ${dockerComposeBlueFilePath} ps -q ${firstBlueService} 2> /dev/null`, false);
+        if (findBlueContainer) {
+            newCompose = dockerComposeGreenFilePath;
+            curCompose = dockerComposeBlueFilePath;
+            newService = firstGreenService;
+            curService = firstBlueService;
         }
         else {
-            newName = services[0];
-            curName = services[1];
+            newCompose = dockerComposeBlueFilePath;
+            curCompose = dockerComposeGreenFilePath;
+            newService = firstBlueService;
+            curService = firstGreenService;
         }
-        const configRaw = await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} config --no-interpolate --format json`, false);
-        const composeConfig = JSON.parse(configRaw);
-        const newContainerName = composeConfig.services[newName].container_name;
+        const curConfigRaw = await deploy.runShellScript(`sudo docker compose -f ${curCompose} config --no-interpolate --format json`, false);
+        const curComposeConfig = JSON.parse(curConfigRaw);
+        const newConfigRaw = await deploy.runShellScript(`sudo docker compose -f ${newCompose} config --no-interpolate --format json`, false);
+        const newComposeConfig = JSON.parse(newConfigRaw);
+        const newContainerName = newComposeConfig.services[newService].container_name;
         if (envFilePath)
-            await deploy.generateEnvFile(envFilePath, newContainerName);
-        const curImageName = composeConfig.services[curName].image;
+            await deploy.generateEnvFile(envFilePath, newService);
+        const curImageName = curComposeConfig.services[curService].image;
         const curImageId = (await deploy.runShellScript(`sudo docker images -q ${curImageName}`, false))?.trim();
         await deploy.runShellScript(`echo "${process.env.GITHUB_TOKEN}" | sudo docker login ghcr.io -u ${process.env.GITHUB_ACTOR} --password-stdin`);
-        await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} pull ${newName}`);
-        await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} up -d ${newName}`);
-        const newNetwork = await deploy.runShellScript(`sudo docker inspect $(sudo docker compose -f ${dockerComposeFilePath} ps -q ${newName}) --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}'`);
+        await deploy.runShellScript(`sudo docker compose -f ${newCompose} pull ${newService}`);
+        await deploy.runShellScript(`sudo docker compose -f ${newCompose} up -d ${newService}`);
+        const newNetwork = await deploy.runShellScript(`sudo docker inspect $(sudo docker compose -f ${newCompose} ps -q ${newService}) --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}'`, false);
         if (!newNetwork)
             throw new Error('Failed to get network name from docker inspect');
         const healthCheck = await deploy.healthCheck({
             network: newNetwork,
-            appName: newName,
+            appName: newCompose,
             timeOut: healthTimeOut,
             internalPort: internalPort,
             healthStatus: healthStatus,
@@ -56365,8 +56381,8 @@ async function bootstrap() {
         if (healthCheck) {
             await deploy.runShellScript(`sudo sed -i 's|proxy_pass .*;|proxy_pass http://${newContainerName}:${internalPort};|g' ${nginxConfigFilePath}`);
             await deploy.runShellScript(`sudo docker exec nginx nginx -s reload`);
-            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} stop ${curName} || true`);
-            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} rm -f -v ${curName} || true`);
+            await deploy.runShellScript(`sudo docker compose -f ${curCompose} stop ${curService} || true`);
+            await deploy.runShellScript(`sudo docker compose -f ${curCompose} rm -f -v ${curService} || true`);
             if (curImageId)
                 await deploy.runShellScript(`sudo docker rmi ${curImageId} || true`);
         }
@@ -56375,9 +56391,9 @@ async function bootstrap() {
         }
     }
     catch (err) {
-        if (newName && deploy) {
-            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} logs ${newName}`);
-            await deploy.runShellScript(`sudo docker compose -f ${dockerComposeFilePath} down ${newName}`);
+        if (newCompose && newService && deploy) {
+            await deploy.runShellScript(`sudo docker compose -f ${newCompose} logs ${newService}`);
+            await deploy.runShellScript(`sudo docker compose -f ${newCompose} down ${newService}`);
         }
         if (err instanceof Error) {
             (0, core_1.setFailed)(err.message);

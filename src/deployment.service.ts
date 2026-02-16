@@ -14,7 +14,7 @@ export class DeploymentService {
         this.dockerConfigPath = dockerConfigPath;
     }
 
-    async generateEnvFile(envFilePath: string, containerName?: string) {
+    async generateEnvFile(envFilePath: string, serviceName?: string) {
         // 로컬의 .env 파일 읽기 (경로는 본인의 환경에 맞게 수정하세요)
         const localEnvPath = path.join(process.cwd(), '.env');
         if (!fs.existsSync(localEnvPath)) {
@@ -27,7 +27,7 @@ export class DeploymentService {
         // 특수 문자 문제 방지를 위해 Base64 인코딩
         const base64Env = Buffer.from(envContent).toString('base64');
 
-        const envFile = containerName ? `${envFilePath}.${containerName}` : envFilePath;
+        const envFile = serviceName ? `${envFilePath}.${serviceName}` : envFilePath;
 
         // EC2에 디렉토리 생성 및 파일 쓰기 스크립트 작성 (base64로 전달하고 서버에서 디코딩하여 저장합니다)
         const setupEnvScript = `
@@ -49,18 +49,19 @@ export class DeploymentService {
 
     async runShellScript(command: string, isPrint: boolean = true) {
         let finalCommand = command;
+
+        // 1. 실제 실행될 명령어만 DOCKER_CONFIG 주입 (내부 로직용)
         if (this.dockerConfigPath) {
-            // sudo docker 실행 시 환경변수 유지를 위해 인라인으로 주입
             finalCommand = finalCommand.replace(/sudo docker/g, `sudo DOCKER_CONFIG=${this.dockerConfigPath} docker`);
-            // 일반 실행을 위한 export
             finalCommand = `export DOCKER_CONFIG=${this.dockerConfigPath}; ${finalCommand}`;
         }
 
-        // 로그 발생
-        if (isPrint) info(`\x1b[1;36m${finalCommand}\x1b[0m`);
+        // 2. 로그 출력 (DOCKER_CONFIG가 붙지 않은 원본 'command'를 사용)
+        // 인라인으로 주입된 경로가 보이지 않아 로그가 깔끔해집니다.
+        if (isPrint) info(`\x1b[1;36m${command}\x1b[0m`);
 
         const parameters: Record<string, string[]> = {
-            commands: [finalCommand],
+            commands: [finalCommand], // 실제 전송은 주입된 명령어로 실행
         };
 
         // 실행
