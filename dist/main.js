@@ -56379,8 +56379,10 @@ async function bootstrap() {
             healthPath: healthPath,
         });
         if (healthCheck) {
-            await deploy.runShellScript(`sudo sed -i 's|proxy_pass .*;|proxy_pass http://${newContainerName}:${internalPort};|g' ${nginxConfigFilePath}`);
-            await deploy.runShellScript(`sudo docker exec nginx nginx -s reload`);
+            if (nginxConfigFilePath) {
+                await deploy.runShellScript(`sudo sed -i 's|proxy_pass .*;|proxy_pass http://${newContainerName}:${internalPort};|g' ${nginxConfigFilePath}`);
+                await deploy.runShellScript(`sudo docker exec nginx nginx -s reload`);
+            }
             await deploy.runShellScript(`sudo docker compose -f ${curCompose} stop ${curService} || true`);
             await deploy.runShellScript(`sudo docker compose -f ${curCompose} rm -f -v ${curService} || true`);
             if (curImageId)

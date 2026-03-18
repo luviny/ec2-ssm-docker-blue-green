@@ -11,7 +11,7 @@ let envFilePath: string;
 let dockerComposeBlueFilePath: string;
 let dockerComposeGreenFilePath: string;
 let awsEc2Id: string;
-let nginxConfigFilePath: string;
+let nginxConfigFilePath: string | null | undefined;
 let healthPath: string;
 let healthStatus: string;
 let healthTimeOut: string;
@@ -115,11 +115,13 @@ async function bootstrap() {
         if (healthCheck) {
             // 정상인 경우
 
-            // proxy_pass로 시작해서 ;로 끝나는 모든 부분을 찾아서 교체
-            await deploy.runShellScript(`sudo sed -i 's|proxy_pass .*;|proxy_pass http://${newContainerName}:${internalPort};|g' ${nginxConfigFilePath}`);
+            if (nginxConfigFilePath) {
+                // proxy_pass로 시작해서 ;로 끝나는 모든 부분을 찾아서 교체
+                await deploy.runShellScript(`sudo sed -i 's|proxy_pass .*;|proxy_pass http://${newContainerName}:${internalPort};|g' ${nginxConfigFilePath}`);
 
-            // nginx 리로드
-            await deploy.runShellScript(`sudo docker exec nginx nginx -s reload`);
+                // nginx 리로드
+                await deploy.runShellScript(`sudo docker exec nginx nginx -s reload`);
+            }
 
             // 기존 서비스 종료
             await deploy.runShellScript(`sudo docker compose -f ${curCompose} stop ${curService} || true`);

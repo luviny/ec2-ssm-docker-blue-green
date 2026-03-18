@@ -18,7 +18,7 @@ inputs:
     required: true
     description: 'Path to the compose yml to execute'
   nginx-config-file-path:
-    required: true
+    required: false
     description: 'Path to the nginx configuration file on the EC2'
   health-path:
     required: false
