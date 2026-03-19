@@ -42,7 +42,7 @@ export class DeploymentService {
 
     async healthCheck(data: { network: string; appName: string; internalPort: string; timeOut: string; healthStatus: string; healthPath: string }) {
         const result = await this.runShellScript(
-            `docker run --rm --network ${data.network.trim()} curlimages/curl  --retry 5  --retry-delay 3  --retry-all-errors --max-time 30 -s -o /dev/null -w "%{http_code}\n" http://${data.appName.trim()}:${data.internalPort.trim()}${data.healthPath.trim()}`,
+            `docker run --rm --network ${data.network.trim()} curlimages/curl  --retry 5  --retry-delay 5  --retry-all-errors --max-time 30 -s -o /dev/null -w "%{http_code}\n" http://${data.appName.trim()}:${data.internalPort.trim()}${data.healthPath.trim()}`,
         );
         return result?.trim() === data.healthStatus;
     }
