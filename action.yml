@@ -20,6 +20,9 @@ inputs:
   nginx-config-file-path:
     required: false
     description: 'Path to the nginx configuration file on the EC2'
+  traefik-config-file-path:
+    required: false
+    description: 'Path to the traefik configuration file on the EC2'
   health-path:
     required: false
     description: 'health check path'
