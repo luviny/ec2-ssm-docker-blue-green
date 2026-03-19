@@ -56314,6 +56314,7 @@ let dockerComposeBlueFilePath;
 let dockerComposeGreenFilePath;
 let awsEc2Id;
 let nginxConfigFilePath;
+let traefikConfigFilePath;
 let healthPath;
 let healthStatus;
 let healthTimeOut;
@@ -56332,6 +56333,7 @@ async function bootstrap() {
         healthStatus = (0, core_1.getInput)('health-status');
         healthTimeOut = (0, core_1.getInput)('health-time-out');
         internalPort = (0, core_1.getInput)('internal-port');
+        traefikConfigFilePath = (0, core_1.getInput)('traefik-config-file-path');
         deploy = new deployment_service_1.DeploymentService(awsRegion, awsEc2Id, dockerConfigPath);
         await deploy.runShellScript(`mkdir -p ${dockerConfigPath}`, false);
         const findBlueService = await deploy.runShellScript(`docker compose -f ${dockerComposeBlueFilePath} config --services`, false);
@@ -56382,6 +56384,9 @@ async function bootstrap() {
             if (nginxConfigFilePath) {
                 await deploy.runShellScript(`sudo sed -i 's|proxy_pass .*;|proxy_pass http://${newContainerName}:${internalPort};|g' ${nginxConfigFilePath}`);
                 await deploy.runShellScript(`sudo docker exec nginx nginx -s reload`);
+            }
+            if (traefikConfigFilePath) {
+                await deploy.runShellScript(`sudo sed -i 's|url:.*|url: "http://${newContainerName}:${internalPort}"|g' ${traefikConfigFilePath}`);
             }
             await deploy.runShellScript(`sudo docker compose -f ${curCompose} stop ${curService} || true`);
             await deploy.runShellScript(`sudo docker compose -f ${curCompose} rm -f -v ${curService} || true`);

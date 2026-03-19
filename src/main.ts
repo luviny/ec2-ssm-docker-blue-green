@@ -12,6 +12,7 @@ let dockerComposeBlueFilePath: string;
 let dockerComposeGreenFilePath: string;
 let awsEc2Id: string;
 let nginxConfigFilePath: string | null | undefined;
+let traefikConfigFilePath: string | null | undefined;
 let healthPath: string;
 let healthStatus: string;
 let healthTimeOut: string;
@@ -33,6 +34,7 @@ async function bootstrap() {
         healthStatus = getInput('health-status');
         healthTimeOut = getInput('health-time-out');
         internalPort = getInput('internal-port');
+        traefikConfigFilePath = getInput('traefik-config-file-path');
 
         // dockerConfigPath를 주입하여 DeploymentService 생성
         deploy = new DeploymentService(awsRegion, awsEc2Id, dockerConfigPath);
@@ -121,6 +123,10 @@ async function bootstrap() {
 
                 // nginx 리로드
                 await deploy.runShellScript(`sudo docker exec nginx nginx -s reload`);
+            }
+
+            if (traefikConfigFilePath) {
+                await deploy.runShellScript(`sudo sed -i 's|url:.*|url: "http://${newContainerName}:${internalPort}"|g' ${traefikConfigFilePath}`);
             }
 
             // 기존 서비스 종료
